@@ -4,6 +4,7 @@ import Control.Applicative (many)
 import Control.Monad (guard, mzero)
 import Control.Monad.Trans.State
 import Data.Char (isAlpha, isPunctuation, isSpace, isSymbol)
+import Data.Void (Void)
 
 import Lambda.Untyped
 
@@ -14,7 +15,7 @@ uncons :: [a] -> Maybe (a, [a])
 uncons [] = Nothing
 uncons (x:xs) = Just (x, xs)
 
-parseAtom :: StateT String Maybe (Exp String)
+parseAtom :: StateT String Maybe (Exp Void String)
 parseAtom = do
   s <- gets dropSpace
   case s of
@@ -37,13 +38,13 @@ parseAtom = do
 parseBit :: Monad m => (Char -> Bool) -> StateT String m String
 parseBit p = StateT $ return . span p . dropSpace
 
-parseExp :: StateT String Maybe (Exp String)
+parseExp :: StateT String Maybe (Exp Void String)
 parseExp = foldl App <$> parseAtom <*> many parseAtom
 
-parse :: String -> Maybe (Exp String,String)
+parse :: String -> Maybe (Exp Void String, String)
 parse = runStateT parseExp
 
-wholeParse :: String -> Maybe (Exp String)
+wholeParse :: String -> Maybe (Exp Void String)
 wholeParse s = do
   (e,r) <- parse s
   guard (all isSpace r)

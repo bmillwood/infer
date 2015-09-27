@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Monad (when)
+import Data.Void (absurd)
 
 import Lambda.Parser (wholeParse)
 import Lambda.Pretty (prettyExp)
@@ -19,8 +20,8 @@ main = do
         Nothing -> "Couldn't parse"
         Just untyped ->
           unlines
-            [ prettyExp untyped
+            [ prettyExp absurd show untyped
             , case infer untyped of
-                Nothing -> "Couldn't infer"
-                Just typed -> prettyTExp show id typed
+                Left _ -> "Couldn't infer"
+                Right typed -> prettyTExp absurd show id typed
             ]

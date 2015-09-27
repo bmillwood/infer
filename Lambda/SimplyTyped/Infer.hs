@@ -5,6 +5,7 @@ import qualified Data.Map as M
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Void
 
 import Lambda.Untyped
 import Lambda.SimplyTyped
@@ -23,16 +24,20 @@ positiveIntegers = from 0
   where
     from n = n :> from (n + 1)
 
+data InferError
+  = OccursCheck
+
 type InferMonad n t =
   ReaderT (M.Map n (Type t))
     (WriterT [Equation t]
       (StateT (Supply t)
-        Maybe))
+        (Either InferError)))
 
 newTyVar :: InferMonad n t t
 newTyVar = state (\ (n :> ns) -> (n, ns))
 
-generateEquations :: (Ord n) => Exp n -> InferMonad n Integer (TExp Integer n)
+generateEquations :: (Ord n) => Exp Void n -> InferMonad n Integer (TExp Void Integer n)
+generateEquations (Lit void) = absurd void
 generateEquations (Var name) = do
   env <- ask
   case M.lookup name env of
@@ -52,7 +57,7 @@ generateEquations (Lam n e) = do
   te <- local (M.insert n (Base vn)) (generateEquations e)
   return (TLam (Arrow (Base vn) (getType te)) n (Base vn) te)        
 
-infer :: (Ord n) => Exp n -> Maybe (TExp Integer n)
+infer :: (Ord n) => Exp Void n -> Either InferError (TExp Void Integer n)
 infer e = do
     ((exp, equations), _finalState) <-
       runStateT (runWriterT (runReaderT (generateEquations e) M.empty)) positiveIntegers
@@ -62,14 +67,15 @@ infer e = do
     subst u twith tin = tin >>= k
       where
         k v | u == v = twith | otherwise = Base v
-    applyEquations [] e = Just e
-    applyEquations (Base t :=: t' : eqns) e = do
-      guard (notOccurs t t')
-      let k = subst t t'
-      applyEquations (map (onETypes k) eqns) (onTypes k e)
+    applyEquations [] e = Right e
+    applyEquations (Base t :=: t' : eqns) e
+      | occurs t t' = Left OccursCheck
+      | otherwise = do
+          let k = subst t t'
+          applyEquations (map (onETypes k) eqns) (onTypes k e)
     applyEquations (t' :=: Base t : eqns) e =
       applyEquations (Base t :=: t' : eqns) e
     applyEquations (Arrow t1 t2 :=: Arrow t3 t4 : eqns) e =
       applyEquations (t1 :=: t3 : t2 :=: t4 : eqns) e
-    notOccurs u (Base v) = u /= v
-    notOccurs u (Arrow t1 t2) = notOccurs u t1 && notOccurs u t2
+    occurs u (Base v) = u == v
+    occurs u (Arrow t1 t2) = occurs u t1 || occurs u t2
