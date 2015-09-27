@@ -20,7 +20,7 @@ main = do
         Nothing -> "Couldn't parse"
         Just untyped ->
           unlines
-            [ prettyExp absurd show untyped
+            [ prettyExp absurd id untyped
             , case infer untyped of
                 Left _ -> "Couldn't infer"
                 Right typed -> prettyTExp absurd show id typed
